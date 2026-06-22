@@ -23,7 +23,7 @@ func main() {
         log.Fatal(err)
     }
     defer conn.Close()
-    defer fmt.Println("\nDisconnected from broker")
+    defer fmt.Println("Disconnected from broker")
     fmt.Println("Connection successful")
 
     ch, err := conn.Channel()
@@ -34,42 +34,65 @@ func main() {
 
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, syscall.SIGINT)
-    <-sigs
+    //go func() {
+    //    <-sigs
+    //    fmt.Println("Program is shutting down")
+	//	return
+    //}()
+
+	cmdsChan := make(chan []string)
+	go func() {
+		cmds := gamelogic.GetInput()
+		cmdsChan <- cmds
+	}()
 
     gamelogic.PrintServerHelp()
-    for {
-        cmds := gamelogic.GetInput()
-        if len(cmds) = 0 {
-            continue
-        }
-        cmd = cmds[0]
 
-        switch cmd {
-        case "pause":
-            err = pubsub.PublishJSON(
-                ch, 
-                string(routing.ExchangePerilDirect), 
-                string(routing.PauseKey), 
-                routing.PlayingState{IsPaused: true},
-            )
-            if err != nil {
-                log.Fatal(err)
-            }
-        case "resume":
-            err = pubsub.PublishJSON(
-                ch, 
-                string(routing.ExchangePerilDirect), 
-                string(routing.PauseKey), 
-                routing.PlayingState{IsPaused: false},
-            )
-            if err != nil {
-                log.Fatal(err)
-            }
-        case "quit":
-            fmt.Println("exiting")
-            break
-        default:
-            fmt.Println("command not understood")
-        }
+	cli:
+    for {
+		select {
+		case <-sigs:
+			fmt.Println("Interrupt: Program is shutting down")
+			break cli
+		case cmds, ok := <-cmdsChan:
+			if !ok {
+				fmt.Println("Interrupt: Program is shutting down")
+				break cli
+			}
+			if len(cmds) == 0 {
+				continue
+			}
+			cmd := cmds[0]
+
+			switch cmd {
+			case "pause":
+				fmt.Println("pausing game")
+				err = pubsub.PublishJSON(
+					ch, 
+					string(routing.ExchangePerilDirect), 
+					string(routing.PauseKey), 
+					routing.PlayingState{IsPaused: true},
+				)
+				if err != nil {
+					log.Fatal(err)
+				}
+			case "resume":
+				fmt.Println("resuming game")
+				err = pubsub.PublishJSON(
+					ch, 
+					string(routing.ExchangePerilDirect), 
+					string(routing.PauseKey), 
+					routing.PlayingState{IsPaused: false},
+				)
+				if err != nil {
+					log.Fatal(err)
+				}
+			case "quit":
+				fmt.Println("exiting game")
+				break cli
+			default:
+				fmt.Println("command not understood")
+			}
+		}
     }
 }
