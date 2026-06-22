@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -56,6 +57,10 @@ func DeclareAndBind(conn *amqp.Connection, exchange, queue, key string, queueTyp
         return nil, amqp.Queue{}, err
     }
 
+	err = ch.QueueBind(queue, routing.PauseKey, "peril_direct", false, nil)
+	if err != nil {
+		return nil, amqp.Queue{}, err
+	}
 
     return ch, qu, nil
 }
