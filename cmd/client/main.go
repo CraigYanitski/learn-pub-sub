@@ -1,17 +1,18 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
+    "fmt"
+    "log"
+    "os"
+    "os/signal"
+    "strings"
+    "syscall"
+	"time"
 
-	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
-	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
-	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
-	amqp "github.com/rabbitmq/amqp091-go"
+    "github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
+    "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+    "github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
+    amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type SimpleQueueType int
@@ -22,7 +23,7 @@ const (
 )
 
 func main() {
-	fmt.Println("Starting Peril client...")
+    fmt.Println("Starting Peril client...")
     defer fmt.Println("Peril client shutting down")
 
     rabbitStr := "amqp://guest:guest@localhost:5672/"
@@ -43,8 +44,60 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
+    gamestate := gamelogic.NewGameState(username)
 
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, syscall.SIGINT)
-    <-sigs
+
+    cmdsChan := make(chan []string)
+    go func() {
+        for {
+            cmds := gamelogic.GetInput()
+            cmdsChan <- cmds
+			time.Sleep(10 * time.Millisecond)
+        }
+    }()
+
+    cli:
+    for {
+        select {
+        case <-sigs:
+            fmt.Println("Interrupt: Program is shutting down")
+            break cli
+        case cmds, ok := <-cmdsChan:
+            if !ok {
+                fmt.Println("Interrupt: Program is shutting down")
+                break cli
+            }
+            if len(cmds) == 0 {
+                continue
+            }
+            cmd := cmds[0]
+
+            switch cmd {
+            case "spawn":
+                err = gamestate.CommandSpawn(cmds)
+                if err != nil {
+                    fmt.Println("Not a valid spawn command: spawn [location] [unit]")
+                }
+            case "move":
+                move, err := gamestate.CommandMove(cmds)
+                if err != nil {
+                    fmt.Println("Not a valid move command: move [location] [ID]")
+                }
+                fmt.Printf("Moved unit to %s\n", move.ToLocation)
+            case "status":
+                gamestate.CommandStatus()
+            case "help":
+                gamelogic.PrintClientHelp()
+            case "spam":
+                fmt.Println("Spamming not allowed yet!")
+            case "quit":
+                fmt.Println("exiting game")
+                break cli
+            default:
+                fmt.Println("command not understood")
+            }
+        }
+    }
 }
