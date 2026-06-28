@@ -1,25 +1,18 @@
 package main
 
 import (
-    "fmt"
-    "log"
-    "os"
-    "os/signal"
-    "strings"
-    "syscall"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 	"time"
 
-    "github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
-    "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
-    "github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
-    amqp "github.com/rabbitmq/amqp091-go"
-)
-
-type SimpleQueueType int
-
-const (
-    Transient = iota
-    Durable
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -40,11 +33,11 @@ func main() {
         log.Fatal(err)
     }
 
-    _, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilDirect, strings.Join([]string{routing.PauseKey, username}, "."), routing.PauseKey, Transient)
+    gamestate := gamelogic.NewGameState(username)
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, strings.Join([]string{routing.PauseKey, username}, "."), routing.PauseKey, pubsub.Transient, handlerPause(gamestate))
     if err != nil {
         log.Fatal(err)
     }
-    gamestate := gamelogic.NewGameState(username)
 
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, syscall.SIGINT)
@@ -81,11 +74,11 @@ func main() {
                     fmt.Println("Not a valid spawn command: spawn [location] [unit]")
                 }
             case "move":
-                move, err := gamestate.CommandMove(cmds)
+                _, err := gamestate.CommandMove(cmds)
                 if err != nil {
                     fmt.Println("Not a valid move command: move [location] [ID]")
                 }
-                fmt.Printf("Moved unit to %s\n", move.ToLocation)
+                //fmt.Printf("Moved unit to %s\n", move.ToLocation)
             case "status":
                 gamestate.CommandStatus()
             case "help":

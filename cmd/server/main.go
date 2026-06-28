@@ -1,17 +1,17 @@
 package main
 
 import (
-    "fmt"
-    "log"
-    "os"
-    "os/signal"
-    "syscall"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-    "github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
-    "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
-    "github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
-    amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -32,14 +32,13 @@ func main() {
         log.Fatal(err)
     }
 
+    _, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, "game_logs.*", pubsub.Durable)
+    if err != nil {
+        log.Fatal(err)
+    }
 
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, syscall.SIGINT)
-    //go func() {
-    //    <-sigs
-    //    fmt.Println("Program is shutting down")
-    //  return
-    //}()
 
     cmdsChan := make(chan []string)
     go func() {
