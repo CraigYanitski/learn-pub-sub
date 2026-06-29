@@ -34,10 +34,33 @@ func main() {
     }
 
     gamestate := gamelogic.NewGameState(username)
-	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, strings.Join([]string{routing.PauseKey, username}, "."), routing.PauseKey, pubsub.Transient, handlerPause(gamestate))
+	err = pubsub.SubscribeJSON(
+		conn, 
+		string(routing.ExchangePerilDirect), 
+		strings.Join([]string{routing.PauseKey, username}, "."), 
+		routing.PauseKey, 
+		pubsub.Transient, 
+		handlerPause(gamestate),
+	)
     if err != nil {
         log.Fatal(err)
     }
+	err = pubsub.SubscribeJSON(
+		conn, 
+		string(routing.ExchangePerilTopic), 
+		strings.Join([]string{routing.ArmyMovesPrefix, username}, "."), 
+		strings.Join([]string{routing.ArmyMovesPrefix,      "*"}, "."), 
+		pubsub.Transient, 
+		handlerMove(gamestate),
+	)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatal(err)
+	}
 
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, syscall.SIGINT)
@@ -74,11 +97,17 @@ func main() {
                     fmt.Println("Not a valid spawn command: spawn [location] [unit]")
                 }
             case "move":
-                _, err := gamestate.CommandMove(cmds)
+                move, err := gamestate.CommandMove(cmds)
                 if err != nil {
                     fmt.Println("Not a valid move command: move [location] [ID]")
                 }
-                //fmt.Printf("Moved unit to %s\n", move.ToLocation)
+				pubsub.PublishJSON(
+					ch, 
+					string(routing.ExchangePerilTopic), 
+					strings.Join([]string{routing.ArmyMovesPrefix, username}, "."), 
+					move,
+				)
+				fmt.Println("Published move successfully")
             case "status":
                 gamestate.CommandStatus()
             case "help":
