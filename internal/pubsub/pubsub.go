@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -57,7 +56,7 @@ func DeclareAndBind(conn *amqp.Connection, exchange, queue, key string, queueTyp
         return nil, amqp.Queue{}, err
     }
 
-	err = ch.QueueBind(queue, routing.PauseKey, "peril_direct", false, nil)
+	err = ch.QueueBind(queue, key, exchange, false, nil)
 	if err != nil {
 		return nil, amqp.Queue{}, err
 	}
@@ -84,14 +83,17 @@ func SubscribeJSON[T any](
 	}
 
 	go func(){
+		defer ch.Close()
 		for d := range deliveryChan {
 			delivery := new(T)
 			err := json.Unmarshal(d.Body, delivery)
 			if err != nil {
-				d.Ack(false)
+				//d.Ack(false)
+				print(err)
+				continue
 			}
 			handler(*delivery)
-			d.Ack(true)
+			d.Ack(false)
 		}
 	}()
 
