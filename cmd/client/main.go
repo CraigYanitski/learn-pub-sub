@@ -19,6 +19,7 @@ func main() {
     fmt.Println("Starting Peril client...")
     defer fmt.Println("Peril client shutting down")
 
+	// establish connection with rabbitmq server
     rabbitStr := "amqp://guest:guest@localhost:5672/"
     conn, err := amqp.Dial(rabbitStr)
     if err != nil {
@@ -28,11 +29,19 @@ func main() {
     defer fmt.Println("\nDisconnected from broker")
     fmt.Println("Connection successful")
 
+	// Create channel on connection
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Get client username
     username, err := gamelogic.ClientWelcome()
     if err != nil {
         log.Fatal(err)
     }
 
+	// Create game state for client
     gamestate := gamelogic.NewGameState(username)
 	err = pubsub.SubscribeJSON(
 		conn, 
@@ -51,20 +60,28 @@ func main() {
 		strings.Join([]string{routing.ArmyMovesPrefix, username}, "."), 
 		strings.Join([]string{routing.ArmyMovesPrefix,      "*"}, "."), 
 		pubsub.Transient, 
-		handlerMove(gamestate),
+		handlerMove(gamestate, ch),
+	)
+    if err != nil {
+        log.Fatal(err)
+    }
+	err = pubsub.SubscribeJSON(
+		conn, 
+		string(routing.ExchangePerilTopic), 
+		string(routing.WarRecognitionsPrefix), 
+		fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username), 
+		pubsub.Durable, 
+		handlerWar(gamestate),
 	)
     if err != nil {
         log.Fatal(err)
     }
 
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	// Listen for SIGINT
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs, syscall.SIGINT)
 
+	// create app command input channel
     cmdsChan := make(chan []string)
     go func() {
         for {
@@ -76,11 +93,13 @@ func main() {
 
     cli:
     for {
+		// race between SIGINT and app command
         select {
         case <-sigs:
             fmt.Println("Interrupt: Program is shutting down")
             break cli
         case cmds, ok := <-cmdsChan:
+			// Exit app if channel closed
             if !ok {
                 fmt.Println("Interrupt: Program is shutting down")
                 break cli
