@@ -3,7 +3,7 @@ package pubsub
 import (
 	"context"
 	"encoding/json"
-	"log"
+	//"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -84,12 +84,12 @@ func SubscribeJSON[T any](
 	queueType SimpleQueueType,
 	handler func(T) AckType,
 )  error {
-	ch, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	ch, qu, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
 		return err
 	}
 
-	deliveryChan, err := ch.Consume(queueName, "", false, false, false, false, nil)
+	deliveryChan, err := ch.Consume(qu.Name, "", false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
@@ -97,23 +97,23 @@ func SubscribeJSON[T any](
 	go func(){
 		defer ch.Close()
 		for d := range deliveryChan {
-			delivery := new(T)
-			err := json.Unmarshal(d.Body, delivery)
+			var delivery T
+			err := json.Unmarshal(d.Body, &delivery)
 			if err != nil {
 				//d.Ack(false)
 				print(err)
 				continue
 			}
-			acktype := handler(*delivery)
+			acktype := handler(delivery)
 			switch acktype {
 			case Ack:
-				log.Println("message delivery acknowledged")
+				//log.Println("message delivery acknowledged")
 				d.Ack(false)
 			case NackRequeue:
-				log.Println("message delivery failed, re-queuing")
+				//log.Println("message delivery failed, re-queuing")
 				d.Nack(false, true)
 			case NackDiscard:
-				log.Println("message delivery failed, discarding")
+				//log.Println("message delivery failed, discarding")
 				d.Nack(false, false)
 			}
 		}
