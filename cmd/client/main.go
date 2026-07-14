@@ -56,7 +56,7 @@ func main() {
     }
 	err = pubsub.SubscribeJSON(
 		conn, 
-		string(routing.ExchangePerilTopic), 
+		routing.ExchangePerilTopic, 
 		strings.Join([]string{routing.ArmyMovesPrefix, username}, "."), 
 		strings.Join([]string{routing.ArmyMovesPrefix,      "*"}, "."), 
 		pubsub.Transient, 
@@ -67,9 +67,10 @@ func main() {
     }
 	err = pubsub.SubscribeJSON(
 		conn, 
-		string(routing.ExchangePerilTopic), 
-		string(routing.WarRecognitionsPrefix), 
-		fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, username), 
+		routing.ExchangePerilTopic, 
+		routing.WarRecognitionsPrefix, 
+		routing.WarRecognitionsPrefix+".*",
+		//fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix), 
 		pubsub.Durable, 
 		handlerWar(gamestate),
 	)
