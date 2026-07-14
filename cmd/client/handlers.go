@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	//"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -24,21 +25,24 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.ArmyM
 		fmt.Println("result: ", res)
 		switch res {
 		case gamelogic.MoveOutComeSafe:
-			fallthrough
+			return pubsub.Ack
 		case gamelogic.MoveOutcomeMakeWar:
-			recognition := gamelogic.RecognitionOfWar{
-				Attacker: move.Player,
-				Defender: gs.GetPlayerSnap(),
-			}
-			pubsub.PublishJSON(
+			err := pubsub.PublishJSON(
 				ch,
 				routing.ExchangePerilTopic,
-				fmt.Sprintf("%s.%s", routing.WarRecognitionsPrefix, move.Player),
-				recognition,
+				fmt.Sprintf("%s.%s", routing.WarRecognitionsPrefix, gs.GetUsername()),
+				gamelogic.RecognitionOfWar{
+					Attacker: move.Player,
+					Defender: gs.GetPlayerSnap(),
+				},
 			)
-			return pubsub.NackRequeue
+			if err != nil {
+				return pubsub.NackRequeue
+			}
+			//time.Sleep(1*time.Second)
+			return pubsub.Ack
 		case gamelogic.MoveOutcomeSamePlayer:
-			fallthrough
+			return pubsub.Ack
 		default:
 			return pubsub.NackDiscard
 		}
@@ -48,20 +52,18 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.ArmyM
 func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(recognition gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
-		res, winner, loser := gs.HandleWar(recognition)
+		res, _, _ := gs.HandleWar(recognition)
+		//time.Sleep(500*time.Millisecond)
 		switch res {
 		case gamelogic.WarOutcomeNotInvolved:
 			return pubsub.NackRequeue
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
 		case gamelogic.WarOutcomeOpponentWon:
-			fmt.Println("%s defeated %s", winner, loser)
 			return pubsub.Ack
 		case gamelogic.WarOutcomeYouWon:
-			fmt.Println("%s defeated %s", winner, loser)
 			return pubsub.Ack
 		case gamelogic.WarOutcomeDraw:
-			fmt.Println("War draw")
 			return pubsub.Ack
 		default:
 			fmt.Println("Unknown war outcome, discarding")
