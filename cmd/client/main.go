@@ -72,7 +72,7 @@ func main() {
 		routing.WarRecognitionsPrefix+".*",
 		//fmt.Sprintf("%s.*", routing.WarRecognitionsPrefix), 
 		pubsub.Durable, 
-		handlerWar(gamestate),
+		handlerWar(gamestate, ch),
 	)
     if err != nil {
         log.Fatal(err)
