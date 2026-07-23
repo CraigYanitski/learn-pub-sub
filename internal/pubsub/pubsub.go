@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/json"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -165,7 +166,7 @@ func SubscribeGob[T any](
 		for d := range deliveryChan {
 			delivery, err := unmarshaller(d.Body)
 			if err != nil {
-				print(err)
+				log.Println(err)
 				continue
 			}
 			acktype := handler(delivery)
