@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"log"
 	"os"
@@ -33,6 +35,24 @@ func main() {
     }
 
     _, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, "game_logs.*", pubsub.Durable)
+    if err != nil {
+        log.Fatal(err)
+    }
+	err = pubsub.SubscribeGob(
+		conn, 
+		routing.ExchangePerilTopic, 
+		routing.GameLogSlug, 
+		routing.GameLogSlug+".*",
+		pubsub.Durable, 
+		handlerLog(),
+		func(data []byte) (routing.GameLog, error) {
+			buffer := bytes.NewBuffer(data)
+			decoder := gob.NewDecoder(buffer)
+			var gameLog routing.GameLog
+			err := decoder.Decode(&gameLog)
+			return gameLog, err
+		},
+	)
     if err != nil {
         log.Fatal(err)
     }
